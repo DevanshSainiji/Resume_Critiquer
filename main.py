@@ -26,13 +26,21 @@ from dotenv import load_dotenv
 
 #to load environment variables
 load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 #to give name to our page/tab
 st.set_page_config(page_title="AI Resume Critiquer", page_icon="📃",layout="centered")
 st.title("AI Resume Critiquer")
 st.markdown("Upload your resume and get AI-powered feedback tailored to your needs!")
 
-# OPENAI_API_KEY= os.getenv("OPENAI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# Initialize session state variables
+if "file_content" not in st.session_state:
+    st.session_state.file_content = None
+if "analysis_content" not in st.session_state:
+    st.session_state.analysis_content = None
+if "ats_score" not in st.session_state:
+    st.session_state.ats_score = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 uploaded_file = st.file_uploader("Upload your resume (PDF or TXT)",type=["pdf","txt"])
 job_role= st.text_input("Enter the job role you are targetting (optional)")
@@ -116,20 +124,87 @@ if analyze and uploaded_file:
         ats_match = re.search(r'\[ATS Score:\s*(\d+)\]', analysis_content)
         
         if ats_match:
-            ats_score = int(ats_match.group(1))
-            display_content = analysis_content.replace(ats_match.group(0), "").strip()
-            
-            st.markdown("### ATS Analysis Results")
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                st.metric(label="ATS Score", value=f"{ats_score}/100")
-            with col2:
-                st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # subtle spacer
-                st.progress(ats_score / 100.0)
-                
-            st.markdown(display_content)
+            st.session_state.ats_score = int(ats_match.group(1))
+            st.session_state.analysis_content = analysis_content.replace(ats_match.group(0), "").strip()
         else:
-            st.markdown("### Analysis Results")
-            st.markdown(analysis_content)
+            st.session_state.ats_score = None
+            st.session_state.analysis_content = analysis_content
+            
+        st.session_state.file_content = file_content
+        st.session_state.messages = [] # Reset chat history for new resume
     except Exception as e:
         st.error(f"An error occured: {str(e)}")
+
+# Render analysis results and chat section if they exist in session state
+if st.session_state.analysis_content is not None:
+    st.write("---")
+    
+    # Display the critique results
+    if st.session_state.ats_score is not None:
+        st.markdown("### ATS Analysis Results")
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            st.metric(label="ATS Score", value=f"{st.session_state.ats_score}/100")
+        with col2:
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True) # subtle spacer
+            st.progress(st.session_state.ats_score / 100.0)
+            
+        st.markdown(st.session_state.analysis_content)
+    else:
+        st.markdown("### Analysis Results")
+        st.markdown(st.session_state.analysis_content)
+
+    st.write("---")
+    st.markdown("### Chat with AI about your Resume")
+    
+    # Display chat history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Chat input
+    if user_prompt := st.chat_input("Ask follow-up questions or discuss your resume..."):
+        # Display user message in chat message container
+        with st.chat_message("user"):
+            st.markdown(user_prompt)
+        # Add user message to session state
+        st.session_state.messages.append({"role": "user", "content": user_prompt})
+
+        # Generate response from AI
+        try:
+            client = Groq(api_key=GROQ_API_KEY)
+            
+            # Construct conversation history for context
+            system_message = {
+                "role": "system",
+                "content": f"""You are an expert resume reviewer and career coach.
+                You are discussing a resume with the user.
+                Below is the content of their resume and the initial critique you provided.
+                Use this context to answer their questions.
+                
+                Resume content:
+                {st.session_state.file_content}
+                
+                Initial Critique:
+                {st.session_state.analysis_content}
+                """
+            }
+            
+            messages = [system_message]
+            messages.extend(st.session_state.messages)
+            
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+                assistant_response = response.choices[0].message.content
+                message_placeholder.markdown(assistant_response)
+                
+            st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+            st.rerun()
+        except Exception as e:
+            st.error(f"An error occurred during chat: {str(e)}")
