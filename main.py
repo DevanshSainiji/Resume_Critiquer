@@ -182,6 +182,10 @@ if st.session_state.analysis_content is not None:
                 Below is the content of their resume and the initial critique you provided.
                 Use this context to answer their questions.
                 
+                CRITICAL GUARDRAIL:
+                You must ONLY answer queries and discuss topics that are directly related to the user's resume, their career, target job roles, professional experience, job applications, or the initial critique. 
+                If the user asks any question or makes a request that is NOT related to these topics (e.g., general knowledge, greetings that turn into off-topic discussion, programming concepts not in the resume, writing general essays, solving math problems, or general chat), you must politely decline to answer, explaining that your only purpose is to help them with their resume, career, and job applications.
+                
                 Resume content:
                 {st.session_state.file_content}
                 
