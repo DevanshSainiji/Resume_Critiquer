@@ -23,6 +23,7 @@ import os
 from openai import OpenAI
 from groq import Groq
 from dotenv import load_dotenv
+from streamlit_mic_recorder import mic_recorder
 
 #to load environment variables
 load_dotenv()
@@ -162,8 +163,47 @@ if st.session_state.analysis_content is not None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Initialize last audio ID in session state to prevent repeat processing
+    if "last_audio_id" not in st.session_state:
+        st.session_state.last_audio_id = None
+
+    user_prompt = None
+
+    # Render voice recording button
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.write("🎙️ Voice Command:")
+    with col2:
+        audio = mic_recorder(
+            start_prompt="Record Command",
+            stop_prompt="Stop Recording",
+            just_once=True,
+            key="voice_recorder"
+        )
+
+    if audio and audio["id"] != st.session_state.last_audio_id:
+        st.session_state.last_audio_id = audio["id"]
+        try:
+            client = Groq(api_key=GROQ_API_KEY)
+            with st.spinner("Transcribing voice command..."):
+                audio_file = io.BytesIO(audio['bytes'])
+                audio_file.name = "audio.wav"
+                transcription = client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-large-v3-turbo"
+                )
+                user_prompt = transcription.text.strip()
+                if user_prompt:
+                    st.success(f"Transcribed: \"{user_prompt}\"")
+        except Exception as e:
+            st.error(f"Failed to transcribe audio: {e}")
+
     # Chat input
-    if user_prompt := st.chat_input("Ask follow-up questions or discuss your resume..."):
+    chat_input_val = st.chat_input("Ask follow-up questions or discuss your resume...")
+    if chat_input_val:
+        user_prompt = chat_input_val.strip()
+
+    if user_prompt:
         # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(user_prompt)
