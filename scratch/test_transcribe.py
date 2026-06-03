@@ -12,33 +12,8 @@ if not GROQ_API_KEY:
     print("Error: GROQ_API_KEY not found in environment.")
     exit(1)
 
-# Generate a 1-second WAV file programmatically
-import wave
-import struct
-import math
-
-audio_path = "scratch/test_generated.wav"
-
-if not os.path.exists("scratch"):
-    os.makedirs("scratch")
-
-sample_rate = 16000
-duration = 1.0  # seconds
-num_samples = int(duration * sample_rate)
-
-print(f"Generating programmatic WAV file at {audio_path}...")
-with wave.open(audio_path, "w") as wav_file:
-    wav_file.setnchannels(1)  # Mono
-    wav_file.setsampwidth(2)  # 16-bit PCM
-    wav_file.setframerate(sample_rate)
-    
-    for i in range(num_samples):
-        # 440 Hz sine wave
-        value = int(16384.0 * math.sin(2.0 * math.pi * 440.0 * i / sample_rate))
-        data = struct.pack("<h", value)
-        wav_file.writeframesraw(data)
-
-print("Generation complete.")
+# Use the downloaded MP3 file
+audio_path = "scratch/test_small.mp3"
 
 # Read file bytes
 with open(audio_path, "rb") as f:

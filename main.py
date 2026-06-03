@@ -189,44 +189,53 @@ if st.session_state.analysis_content is not None:
         audio_hash = hashlib.md5(audio_bytes).hexdigest()
         if audio_hash not in st.session_state.processed_audio_hashes:
             st.session_state.processed_audio_hashes.add(audio_hash)
-            try:
-                client = Groq(api_key=GROQ_API_KEY)
-                with st.spinner("Transcribing voice command..."):
-                    # Detect the actual format from magic bytes in file header
-                    ext = "wav"
-                    mime_type = "audio/wav"
-                    if audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
-                        ext = "webm"
-                        mime_type = "audio/webm"
-                    elif b"RIFF" in audio_bytes[:12]:
+            
+            # Warn if audio is too short or empty (e.g., less than 2KB)
+            if len(audio_bytes) < 2000:
+                st.warning("Recording was too short. Please speak clearly into your microphone.")
+            else:
+                try:
+                    client = Groq(api_key=GROQ_API_KEY)
+                    with st.spinner("Transcribing voice command..."):
+                        # Detect the actual format from magic bytes in file header
                         ext = "wav"
                         mime_type = "audio/wav"
-                    elif b"ftyp" in audio_bytes[4:12]:
-                        ext = "m4a"
-                        mime_type = "audio/m4a"
-                    elif audio_bytes.startswith(b"OggS"):
-                        ext = "ogg"
-                        mime_type = "audio/ogg"
-                    elif audio_bytes.startswith(b"ID3") or audio_bytes.startswith(b"\xff\xfb") or audio_bytes.startswith(b"\xff\xf3"):
-                        ext = "mp3"
-                        mime_type = "audio/mp3"
-                    
-                    audio_name = f"audio.{ext}"
-                    transcription = client.audio.transcriptions.create(
-                        file=(audio_name, audio_bytes, mime_type),
-                        model="whisper-large-v3-turbo"
-                    )
-                    user_prompt = transcription.text.strip()
-                    
-                    # Filter out common Whisper hallucinations for silence/empty recordings
-                    hallucinations = {"Thank you.", "Thank you", "Thanks for watching.", "Thanks for watching"}
-                    if user_prompt in hallucinations:
-                        user_prompt = ""
-                    
-                    if user_prompt:
-                        st.success(f"Transcribed: \"{user_prompt}\"")
-            except Exception as e:
-                st.error(f"Failed to transcribe audio: {e}")
+                        if audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
+                            ext = "webm"
+                            mime_type = "audio/webm"
+                        elif b"RIFF" in audio_bytes[:12]:
+                            ext = "wav"
+                            mime_type = "audio/wav"
+                        elif b"ftyp" in audio_bytes[4:12]:
+                            ext = "m4a"
+                            mime_type = "audio/m4a"
+                        elif audio_bytes.startswith(b"OggS"):
+                            ext = "ogg"
+                            mime_type = "audio/ogg"
+                        elif audio_bytes.startswith(b"ID3") or audio_bytes.startswith(b"\xff\xfb") or audio_bytes.startswith(b"\xff\xf3"):
+                            ext = "mp3"
+                            mime_type = "audio/mp3"
+                        
+                        audio_name = f"audio.{ext}"
+                        transcription = client.audio.transcriptions.create(
+                            file=(audio_name, audio_bytes, mime_type),
+                            model="whisper-large-v3-turbo"
+                        )
+                        user_prompt = transcription.text.strip()
+                        
+                        # Filter out common Whisper hallucinations for silence/empty recordings
+                        hallucinations = {
+                            "Thank you.", "Thank you", "Thanks for watching.", "Thanks for watching",
+                            "Thank you very much.", "Thank you very much"
+                        }
+                        if user_prompt in hallucinations or len(user_prompt) <= 1:
+                            user_prompt = ""
+                            st.warning("No speech detected. Please check your microphone and speak clearly.")
+                        
+                        if user_prompt:
+                            st.success(f"Transcribed: \"{user_prompt}\"")
+                except Exception as e:
+                    st.error(f"Failed to transcribe audio: {e}")
 
     if chat_input_val:
         user_prompt = chat_input_val.strip()
