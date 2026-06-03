@@ -170,7 +170,7 @@ if st.session_state.analysis_content is not None:
 
     # Render inputs side-by-side at the bottom of the page (like ChatGPT)
     with st._bottom:
-        col1, col2 = st.columns([0.85, 0.15])
+        col1, col2 = st.columns([0.72, 0.28])
         with col1:
             chat_input_val = st.chat_input("Ask follow-up questions or discuss your resume...")
         with col2:
@@ -179,6 +179,13 @@ if st.session_state.analysis_content is not None:
     if audio_value:
         import hashlib
         audio_bytes = audio_value.getvalue()
+        
+        # Save raw audio to scratch directory for inspection/debugging
+        import os
+        os.makedirs("scratch", exist_ok=True)
+        with open("scratch/debug_recording.raw", "wb") as f:
+            f.write(audio_bytes)
+            
         audio_hash = hashlib.md5(audio_bytes).hexdigest()
         if audio_hash not in st.session_state.processed_audio_hashes:
             st.session_state.processed_audio_hashes.add(audio_hash)
