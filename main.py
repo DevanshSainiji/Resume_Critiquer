@@ -184,11 +184,28 @@ if st.session_state.analysis_content is not None:
             try:
                 client = Groq(api_key=GROQ_API_KEY)
                 with st.spinner("Transcribing voice command..."):
+                    # Map the mime type to the correct file extension for the Groq API
+                    mime_type = audio_value.type
+                    ext = "wav"
+                    if "webm" in mime_type:
+                        ext = "webm"
+                    elif "mp4" in mime_type or "m4a" in mime_type:
+                        ext = "m4a"
+                    elif "ogg" in mime_type:
+                        ext = "ogg"
+                    
+                    audio_name = f"audio.{ext}"
                     transcription = client.audio.transcriptions.create(
-                        file=audio_value,
+                        file=(audio_name, audio_value.getvalue(), mime_type),
                         model="whisper-large-v3-turbo"
                     )
                     user_prompt = transcription.text.strip()
+                    
+                    # Filter out common Whisper hallucinations for silence/empty recordings
+                    hallucinations = {"Thank you.", "Thank you", "Thanks for watching.", "Thanks for watching"}
+                    if user_prompt in hallucinations:
+                        user_prompt = ""
+                    
                     if user_prompt:
                         st.success(f"Transcribed: \"{user_prompt}\"")
             except Exception as e:
