@@ -178,25 +178,35 @@ if st.session_state.analysis_content is not None:
 
     if audio_value:
         import hashlib
-        audio_hash = hashlib.md5(audio_value.getvalue()).hexdigest()
+        audio_bytes = audio_value.getvalue()
+        audio_hash = hashlib.md5(audio_bytes).hexdigest()
         if audio_hash not in st.session_state.processed_audio_hashes:
             st.session_state.processed_audio_hashes.add(audio_hash)
             try:
                 client = Groq(api_key=GROQ_API_KEY)
                 with st.spinner("Transcribing voice command..."):
-                    # Map the mime type to the correct file extension for the Groq API
-                    mime_type = audio_value.type
+                    # Detect the actual format from magic bytes in file header
                     ext = "wav"
-                    if "webm" in mime_type:
+                    mime_type = "audio/wav"
+                    if audio_bytes.startswith(b"\x1a\x45\xdf\xa3"):
                         ext = "webm"
-                    elif "mp4" in mime_type or "m4a" in mime_type:
+                        mime_type = "audio/webm"
+                    elif b"RIFF" in audio_bytes[:12]:
+                        ext = "wav"
+                        mime_type = "audio/wav"
+                    elif b"ftyp" in audio_bytes[4:12]:
                         ext = "m4a"
-                    elif "ogg" in mime_type:
+                        mime_type = "audio/m4a"
+                    elif audio_bytes.startswith(b"OggS"):
                         ext = "ogg"
+                        mime_type = "audio/ogg"
+                    elif audio_bytes.startswith(b"ID3") or audio_bytes.startswith(b"\xff\xfb") or audio_bytes.startswith(b"\xff\xf3"):
+                        ext = "mp3"
+                        mime_type = "audio/mp3"
                     
                     audio_name = f"audio.{ext}"
                     transcription = client.audio.transcriptions.create(
-                        file=(audio_name, audio_value.getvalue(), mime_type),
+                        file=(audio_name, audio_bytes, mime_type),
                         model="whisper-large-v3-turbo"
                     )
                     user_prompt = transcription.text.strip()
