@@ -12,8 +12,8 @@ if not GROQ_API_KEY:
     print("Error: GROQ_API_KEY not found in environment.")
     exit(1)
 
-# Use the downloaded MP3 file
-audio_path = "scratch/test_small.mp3"
+# Use the user's debug recording file
+audio_path = "scratch/debug_recording.raw"
 
 # Read file bytes
 with open(audio_path, "rb") as f:
